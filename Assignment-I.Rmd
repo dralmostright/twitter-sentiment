@@ -249,5 +249,5 @@ __Note__: _Most time in Coding and Testing section went on testing and improving
 6. https://en.wikipedia.org/wiki/Confusion_matrix
 7. https://en.wikipedia.org/wiki/Precision_and_recall
 8. https://www.cs.uic.edu/~liub/FBS/sentiment-analysis.html
-9. [A Detailed Introduction to K-Nearest Neighbor (KNN) Algorithm] (https://saravananthirumuruganathan.wordpress.com/2010/05/17/a-detailed-introduction-to-k-nearest-neighbor-knn-algorithm/), Web Article.
+9. [A Detailed Introduction to K-Nearest Neighbor KNN Algorithm] (https://saravananthirumuruganathan.wordpress.com/2010/05/17/a-detailed-introduction-to-k-nearest-neighbor-knn-algorithm/), Web Article.
 10. http://www.cs.uvm.edu/~xwu/kdd/kNN-11.ppt
