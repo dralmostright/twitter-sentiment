@@ -1,0 +1,13 @@
+---
+title: 'My Title'
+author: "Me me me me!"
+output: pdf_document
+bibliography: references.bib
+title: "Assignment-I"
+author: "Suman Adhikari"
+date: "January 20, 2018"
+---
+
+Application written in the R programming language [@RCoreTeam] using the Shiny framework [@Chang2015].
+
+# REFERENCES

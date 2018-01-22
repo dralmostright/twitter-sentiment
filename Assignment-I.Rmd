@@ -1,0 +1,253 @@
+---
+fontsize: 9pt
+output:
+  pdf_document: default
+geometry: margin=0.7in
+bibliography: references.bib
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+### Track Start Time
+ptm <- proc.time()
+```
+
+```{r echo=FALSE, message=FALSE, results='hide'}
+require(twitteR)
+require(RCurl)
+require(tm)
+require(quanteda)
+require(plyr)
+require(stringr)
+require(class) ## for KNN
+require(caret) ## for ML
+require(e1071) ## for naiveBayes
+library(knitr)
+```
+```{r echo=FALSE, results='hide', message=FALSE, warning=FALSE}
+### Authenticating to Twitter
+Consumer_Key <- 'Fv3RNkwuwtQdRTpGj1TMgM3Pe'
+Consumer_Secret <- '4T1rbKAYQlga9q7kjW7YrGwYqxbI4yronUVglVZizLV8VjLLCg'
+Access_Token <- '2471734890-C9RJQrvJFGdvmgbwibFsPUwM8w6N9CovyFAKsRz'
+Access_Token_Secret <- 'fzWPiiPSP2BLXMUWxkQPlzvtH8rkRlLsFNvovElpT6STp'
+setup_twitter_oauth(Consumer_Key, Consumer_Secret, Access_Token, Access_Token_Secret)
+
+#### Collect Positive data
+assignment <- searchTwitter('assignment+:)', lang="en", n=500,resultType="recent")
+president <- searchTwitter('donald+trump+:)', lang="en", n=500, resultType="recent")
+university <- searchTwitter('university+:)', lang="en", n=500, resultType="recent")
+starwar <- searchTwitter('star+wars+:)', lang="en", n=1000, resultType="recent")
+bestmovie <- searchTwitter('best+movie+:)', lang="en", n=100, resultType="recent")
+
+#### Collect Negative data
+showman <- searchTwitter('The Greatest Showman+:(', lang="en", n=200, resultType="recent")
+post <- searchTwitter('the post+:(', lang="en", n=200, resultType="recent")
+fakenews <- searchTwitter('fake+news+:(', lang="en", n=100, resultType="recent")
+ladybird <- searchTwitter('lady bird+:(', lang="en", n=50, resultType="recent")
+dark <- searchTwitter('dark+:(', lang="en", n=100, resultType="recent")
+bbad <- searchTwitter('breaking bad+:(', lang="en", n=50, resultType="recent")
+weekend <- searchTwitter('weekend+work+:(', lang="en", n=100, resultType="recent")
+makemoney <- searchTwitter('money+make+:(', lang="en", n=100, resultType="recent")
+goodfriend <- searchTwitter('good+friend+:(', lang="en", n=100, resultType="recent")
+strangething <- searchTwitter('Stranger Things+:(', lang="en", n=100, resultType="recent")
+vikings <- searchTwitter('Vikings+:(', lang="en", n=100, resultType="recent")
+perfect <- searchTwitter('Pitch Perfect 3+:(', lang="en", n=50, resultType="recent")
+panther <- searchTwitter('Black Panther+:(', lang="en", n=40, resultType="recent")
+crown <- searchTwitter('the crown+:(', lang="en", n=50, resultType="recent")
+shape <- searchTwitter('The Shape of Water+:(', lang="en",n=100, resultType="recent")
+starwarn <- searchTwitter('star+wars+:(', lang="en", n=1000, resultType="recent")
+
+
+#### Extracting Data and merging
+df <- list();
+
+####positives
+postives <- list(assignment,president, university,starwar,bestmovie)
+
+####negatives
+negatives <- list(showman,post,fakenews,ladybird,dark,bbad,weekend,makemoney,goodfriend,strangething,vikings,perfect,panther,crown,shape,starwarn)
+
+####function to merge the tweets with labeling sentiment
+bindrows <- function(tweets, sentiment){
+tempData <- cbind(unique(sapply(tweets, function(x) x$getText())), sentiment)
+colnames(tempData) <- c('tweets','sentiment')
+return(tempData)
+}
+
+#### merge all
+df <- lapply(postives, bindrows, sentiment='positive')
+df <- append(df, lapply(negatives, bindrows, sentiment='negative'))
+mdata <- as.data.frame(ldply(df, rbind))
+
+#### shuffleing rows
+mdata <- mdata[sample(nrow(mdata)),]
+
+#### Cleaning tweets
+
+mdata$tweets <- gsub(pattern = '(f|ht)tp(s?)://(.*)[a-z]+', mdata$tweets, replacement =" ", perl = T)
+mdata$tweets <- gsub(pattern = '[^[:graph:]]', mdata$tweets, replacement =" ")
+mdata$tweets <- gsub(pattern = '[[:cntrl:]]', mdata$tweets, replacement =" ")
+mdata$tweets <- gsub(pattern = '[[:punct:]]', mdata$tweets, replacement ="")
+mdata$tweets <- gsub(pattern = '\\d+', mdata$tweets, replacement ="")
+mdata$tweets <- gsub(pattern = '\\s+', mdata$tweets, replacement =" ")
+mdata$tweets <- tolower(mdata$tweets)
+
+
+##corpus <- tm_map(corpus, mapFun, src="[^a-zA-Z0-9\\s]+", dest=" ")
+
+#### Removing tweets with total chars less than 15
+mdataIdx <- which(nchar(mdata$tweets) > 15)
+mdata <- mdata[mdataIdx,]
+
+#### view how many tweets are positive and negative 
+toatlTweet <- table(mdata$sentiment)
+
+getDTM <- function(sentiment, tweet){
+
+### Get data as per sentiments
+sentiIdx <- which(tweet$sentiment == sentiment)
+temData <- tweet[sentiIdx,]
+
+#### Creating Corpus
+tempCor <- Corpus(VectorSource(temData$tweets))
+
+#tempCor <- tm_map(tempCor, stemDocument)
+tempCor <- tm_map(tempCor, stripWhitespace)
+			
+## change the corpus so that quanteda
+#tempCor <- corpus(tempCor)
+
+## get the document term matrix
+tdm <- TermDocumentMatrix(tempCor)
+
+## remove the sparse terms
+tdm <- removeSparseTerms(tdm, 0.995)
+
+## return the dtm
+output <- list(sentiment=sentiment, tdm=tdm)
+}
+
+sentiment <- c("positive","negative")
+tdm <- lapply(sentiment,getDTM, tweet=mdata)
+
+
+### Adding sentiment label to DTM and changing to TDM
+addSentiment <- function(dtm){
+t.dtm <- t(data.matrix(dtm[["tdm"]]))
+df.tfm <- as.data.frame(t.dtm, stringAsFactors=FALSE)
+df.tfm <- cbind(df.tfm, rep(dtm[["sentiment"]], nrow(df.tfm)))
+colnames(df.tfm)[ncol(df.tfm)] <- "sentiment"
+return(df.tfm)
+}
+
+stageData <- lapply(tdm, addSentiment)
+
+### Combine both tfm of both negative and positive sentiments
+tdmCombined <- do.call(rbind.fill, stageData)
+# Terms not contained in tweets are assigned 0 instead of NA's
+tdmCombined[is.na(tdmCombined)] <- 0
+
+### Creating the Model
+
+### Splitting data into test and train
+set.seed(2018)
+trainIdx <- createDataPartition(y = tdmCombined$sentiment,p = 0.75,list = FALSE)
+trainData <- tdmCombined[trainIdx,]
+testData <- tdmCombined[-trainIdx,]
+
+### TDM containing sentiments
+tdmSentiment <- tdmCombined[,'sentiment']
+
+### TDM not contaning sentiments
+tdmNonSentiment <- tdmCombined[,!colnames(tdmCombined) %in% "sentiment"]
+
+### using knn
+trnCtl <- trainControl(method="repeatedcv",repeats = 3)
+knnModel <- train(sentiment ~ ., data = trainData, method = "knn", trControl = trnCtl, preProcess = c("center","scale"), tuneGrid=data.frame(k=1:5))
+
+### Prediction
+knnPredict <- predict(knnModel,newdata = tdmNonSentiment[-trainIdx,])
+
+### Confusion Matrix
+conf.mat <- table("Prediction"=knnPredict, "Actual"=tdmSentiment[-trainIdx])
+
+P <- round(conf.mat[1,1]/(conf.mat[1,1]+conf.mat[1,2]),3)
+R <- round(conf.mat[1,1]/(conf.mat[1,1]+conf.mat[2,1]),3)
+A <- round((conf.mat[1,1] + conf.mat[2,2])/(conf.mat[1,1] + conf.mat[1,2] + conf.mat[2,1] + conf.mat[2,2]),3)
+F <- round(2 * ((P * R)/(P + R)),3)
+```
+## Introduction:
+Social networking sites has evolved as a major platform for people to express their opinions and sentiments on variety of topics like movies, politics issues, daily chores etc. This has made Social networking sites e.g. Facebook, Twitter rich with data, which can be used for opinion and sentiment mining. But mining of such unstructured text can be cumbersome and challenging. Hence I am motivated in this assignment to develop a model for sentiment and opinion analysis for twitter data.
+
+## Classification:
+Classification lies in heart of both human and Machine intelligence [1] and it has been used in supervised learning to predict the outcomes, given one or more inputs. The outcomes are often labels or categories. For example in our case a tweet is classified based on its sentiment i.e. "positive" or "negative". I am using K-nearest neighbour (kNN) for classification. kNN is a typical example based classifier that does not build an explicit, declarative representation of the category, but relies on the category labels attached to the training documents similar to the test document. Given a test document d, the system finds the k nearest neighbours among training documents. The similarity score of each nearest neighbour document to the test document is used as the weight of the classes of the neighbour document[2].
+
+## Implementation & Experimental results
+The data for experiment was retrieved using function searchTwitter from R package twitteR. Twitter Standard search API searches against a sampling of recent Tweets published in the past 7 days only. Hence I have choose topics like "star war", "assignment", "best movie", "The Greatest Showman", "the post", "Stranger Things" and some few which are released currently in conjunction with emoticons :), :( to retrieve tweets as shown in below excerpt. 
+```{r, eval=FALSE}
+#### Collect data with positive sentiment
+starwar <- searchTwitter('star+wars+:)', lang="en", n=1000, resultType="recent")
+#### Collect data with negative sentiment
+showman <- searchTwitter('The Greatest Showman+:(', lang="en", n=200, resultType="recent")
+```
+
+### Cleaning and processing data
+The retrieved tweets consists of various attributes e.g. created, URLS, texts etc. and we are considering message text only. The tweets were then processed and cleaned with below steps:
+
+* Remove duplicate tweets
+* Label tweets as positive or negative with emoticons :), :-), :)), :D, :-)) or :(, :((, :-(, :-(( respectively.
+* Merging all tweets to a single list.
+* Clean tweets removing numbers, punctuation, urls, unwanted symbols, emoticons and lowering case.
+* Create corpus and generate term document matrix.
+
+### Model building and evaluation
+The final data is divided into training set covering 75% of data for training the model and testing set covering 25% of data for evaluation of the model. Predictive model for classification was build using R package "caret" with 10-fold cross validation repeated 3 times. The best value for k, model used is `r knnModel$finalModel[[2]]`.
+
+The performance of model is evaluated by calculating various metrics like precision (P), recall(R), F1 Score. Precision is the fraction of retrieved instances that are relevant, while recall is the fraction of relevant instances that are retrieved. The two measures are sometimes used together in the F1 score, a measure of a test's accuracy.
+
+The precision (P), recall(R), F1 score and accuracy (A) are evaluated as:
+
+* P = TP / (TP+FP)
+* R = TP / (TP+FN)
+* A = (TP + TN) / (TP + TN + FP + FN)
+* F1 = 2 * ((P * R)/(P + R))
+
+where TP, TN, FP, FN implies true positive, true negative, false positive and false negative respectively
+
+Table: Precision/Recall/F1-Score values
+
+|S.N|Total Tweets|Execution Time(m)|Precision|Recall|F1-Score|Accuracy|
+|---|------------|--------------|---------|------|--------|--------|
+|1|`r sum(toatlTweet)`|`r round((proc.time() - ptm)[[3]]/60,2)`|`r P`|`r R`|`r F`|`r A`|
+
+The precision for our model is `r P`, means that `r P*100` percent of the tweets are classified as positive sentiment, while `r 100 - P*100` percent of those tweets have been misidentified as positive sentiment and recall is `r R`, means that `r R*100` percent of the tweets are identified positive sentiment which were in fact positive sentiment.
+
+## Discussion
+Overall our model performance was good with each performance measure greater than 0.8. Whenever using machine learning to solve real world problems we should be clear on what performance metric defines success for us i.e. either recall or precision or both. And I have not found de facto standard for precision or recall around the web, but in general it is better to have high recall and precision.
+
+The use of emoticons for analyzing sentiment of tweets are good but for best analysis we need to integrate natural language processing methods and symbol analysis[3]. Currently we are using Unigrams, but considering bigrams or trigrams might increase our performance. In addition we are ignoring the context in tweets, so use of more sophisticated algorithm like SVM with POS-tagging(Parts of Speech) may help us to gain more performance. 
+
+Computation cost is quite high with kNN especially when the size of the training set grows, because we need to compute distance of each query instance to all training samples and some indexing (e.g K-D tree) may reduce this computation cost.
+
+Moreover, most classification techniques used so far are for texts with long lengths, but tweets are shot, summarized and precise due to length limitation i.e 140 characters and to make a significant progress in sentiment analysis using tweets, we still need novel ideas.
+
+## Time Distribution:
+|S.N|Topic|Time in hours|
+|---|-----|-------------|
+|1|Literature review & State of the arts|5|
+|2|Coding and Testing|6|
+|3|Report Preparation & Miscellenous |4|  
+
+__Note__: _Most time in Coding and Testing section went on testing and improving performance of model._
+
+## References
+1. James H. Martin, Daniel Jurafsky &. 2017. "[Speech and Language Processing](https://web.stanford.edu/~jurafsky/slp3/6.pdf)" Book.
+2. Songbo Tan, Jin Zhang 2008. "An Empirical Study of Sentiment Analysis for Chinese Documents" Article.
+3. Wolny, Wieslaw 2016. "[Sentiment Analysis of Twitter Data Using Emoticons and Emoji Ideograms](http://cejsh.icm.edu.pl/cejsh/element/bwmeta1.element.cejsh-74a49185-95f0-4712-a09f-ced5bf5477f1/c/10.pdf)" Article.
+4. http://rmarkdown.rstudio.com/authoring_bibliographies_and_citations.html#citation_styles
+5. http://www.scholarpedia.org/article/K-nearest_neighbor
+6. https://en.wikipedia.org/wiki/Confusion_matrix
+7. https://en.wikipedia.org/wiki/Precision_and_recall
+8. https://www.cs.uic.edu/~liub/FBS/sentiment-analysis.html
+9. [A Detailed Introduction to K-Nearest Neighbor (KNN) Algorithm] (https://saravananthirumuruganathan.wordpress.com/2010/05/17/a-detailed-introduction-to-k-nearest-neighbor-knn-algorithm/), Web Article.
+10. http://www.cs.uvm.edu/~xwu/kdd/kNN-11.ppt
