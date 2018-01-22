@@ -227,7 +227,7 @@ Overall our model performance was good with each performance measure greater tha
 
 The use of emoticons for analyzing sentiment of tweets are good but for best analysis we need to integrate natural language processing methods and symbol analysis[3]. Currently we are using Unigrams, but considering bigrams or trigrams might increase our performance. In addition we are ignoring the context in tweets, so use of more sophisticated algorithm like SVM with POS-tagging(Parts of Speech) may help us to gain more performance. 
 
-Computation cost is quite high with kNN especially when the size of the training set grows, because we need to compute distance of each query instance to all training samples and some indexing (e.g K-D tree) may reduce this computation cost.
+Increasing our sample size also helps us to gain performance but computation cost is quite high with kNN especially when the size of the training set grows, because we need to compute distance of each query instance to all training samples and some indexing (e.g K-D tree) or PCA may reduce this computation cost.
 
 Moreover, most classification techniques used so far are for texts with long lengths, but tweets are shot, summarized and precise due to length limitation i.e 140 characters and to make a significant progress in sentiment analysis using tweets, we still need novel ideas.
 
@@ -249,5 +249,7 @@ __Note__: _Most time in Coding and Testing section went on testing and improving
 6. https://en.wikipedia.org/wiki/Confusion_matrix
 7. https://en.wikipedia.org/wiki/Precision_and_recall
 8. https://www.cs.uic.edu/~liub/FBS/sentiment-analysis.html
-9. [A Detailed Introduction to K-Nearest Neighbor KNN Algorithm] (https://saravananthirumuruganathan.wordpress.com/2010/05/17/a-detailed-introduction-to-k-nearest-neighbor-knn-algorithm/), Web Article.
+9. [A Detailed Introduction to K Nearest Neighbor KNN Algorithm](https://saravananthirumuruganathan.wordpress.com/2010/05/17/a-detailed-introduction-to-k-nearest-neighbor-knn-algorithm/)  Web Article.
 10. http://www.cs.uvm.edu/~xwu/kdd/kNN-11.ppt
+
+Source Code of the assignment can be found on [github](https://github.com/dralmostright/twitter-sentiment)
